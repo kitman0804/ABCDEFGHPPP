@@ -3,6 +3,17 @@
 This R code is designed to solve `AB - CD = EF` and `EF - GH = PPP` with base from 10 to 36 (can be extended to base 37 or hight therotically, if a larger set of character code is provided)
 
 
+#### How to use:
+
+Just run all the functions the file `abcdefghppp_w2.R`.
+
+If you want to solve the equation when base = b, you can just type
+
+```
+solve_w2(base = b)
+```
+
+
 #### General idea:
 
 1. Find all possibilites of digit of ones of `x` + `y` and `x` - `y` and the value that will carry to digit of tens under a specified base.

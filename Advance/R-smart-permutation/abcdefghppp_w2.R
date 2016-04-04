@@ -76,8 +76,8 @@ solve_w2 <- function(base) {
 #================================#
 # Output
 #================================#
-sink(file = "D:/output_w2.txt")
-cat("Machine: ----; RAM: ----; 64-bit\n\n")
+sink(file = "C:/Users/KITMAN/Documents/GitHub/ABCDEFGHPPP/output_w2.txt")
+cat("Machine: i5-4460; RAM: 8GB; 64-bit\n\n")
 cat("----------------------------------------------------------------\n\n")
 for (base in c(16, 22, 28, 34)) {
   time <- system.time({sol <- solve_w2(base)})
