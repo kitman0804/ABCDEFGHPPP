@@ -1,72 +1,83 @@
 library(data.table)
-add_new <- function(x, new_vrb, all_poss_val) {
-  tmp <- matrix(NA, nrow = length(all_poss_val)^length(new_vrb), ncol = length(new_vrb)) # pre-allocate
-  tmp <- expand.grid(rep(list(all_poss_val), length(new_vrb)))
-  tmp <- as.data.table(tmp)
-  names(tmp) <- new_vrb
-  x_out <- x[, cbind(tmp), by = names(x)]
-  criteria <- combn(names(x_out), 2)
-  criteria <- paste("[", criteria[1, ], " != ", criteria[2, ], "]", sep = "", collapse = "")
-  eval(parse(text = paste("x_out <- x_out", criteria, sep = "")))
-  x_out <- setcolorder(x_out, order(names(x_out)))
-  return(x_out)
+
+#================================#
+# Some functions
+#================================#
+# Function to get all possibilities of addition & ubstraction of two single-digited numbers
+all_possbilility <- function(base = 10, replicate = TRUE, least = TRUE) {
+  all <- as.data.table(expand.grid(d1 = 0:(base - 1), d2 = 0:(base - 1)))
+  # Addition
+  all <- all[, carry := trunc((d1 + d2) / base)]
+  all <- all[, carry1 := trunc((d1 + d2 + 1) / base)]
+  all <- all[, add := d1 + d2 - carry * base] # Addition
+  all <- all[, add1 := d1 + d2 + 1 - carry1 * base] # Addition + 1 (carry)
+  # Substraction
+  all <- all[, sub := d1 - d2 + ((d1 - d2) < 0) * base] # Subtraction
+  all <- all[, sub1 := d1 - d2 - 1 + ((d1 - d2 - 1) < 0) * base] # Subtraction + 1 (carry)
+  
+  all <- if (replicate) all[] else all[d1 != d2]
+  return(all)
 }
 
-convert_wr_base <- function(x, base) {
-  # Convert the number to desired written presentation based on the base
+
+# Function to find
+find <- function(what, target, permutation, rename = c("d1", "d2")) {
+  set <- permutation[permutation[[what]] %in% target, c("d1", "d2", what), with = FALSE]
+  names(set) <- rename[1:ncol(set)]
+  set <- set[!duplicated(set)]
+  return(set)
+}
+
+
+# Function to convert the digits to the desired written presentation based on the base
+convert_wr <- function(x, base) {
   if (base > (10 + 26)) stop("Maximum Base supported is 36 (0-Z)")
   digit <- c(0:9, LETTERS)[1:base]
   digit[x + 1]
 }
 
 
-#================================#
-# Solve AB - CD = EF & EF + GH = PPP
-#================================#
-solve_w2 <- function(base = 10, allow_zero = FALSE) {
-  # allow_zero = FALSE, the most significant digit is not allowed to be zero
-  ## All possible values of E and G
-  choice_sig <- (!allow_zero):(base - 1) # choice of the most significant digit
-  choice_nsig <- 0:(base - 1) # chose of non most significant digits
+solve_w2 <- function(base) {
+  all <- all_possbilility(base = base, FALSE)
   
-  sol <- matrix(NA, nrow = length(choice_sig)^2, ncol = 2) # pre-allocate
-  sol <- expand.grid(rep(list(choice_sig), 2))
-  names(sol) <- c("e", "g")
-  sol <- as.data.table(sol)[e != g][order(e)]
+  sol_egp <- rbind(
+    find("carry", 1, all, c("e", "g", "p"))[e > 0][g > 0][e != p][g != p], 
+    find("carry1", 1, all, c("e", "g", "p"))[e > 0][g > 0][e != p][g != p]
+  )
+  sol_egp <- sol_egp[!duplicated(sol_egp)]
   
-  ## Find all possible values of  P
-  sol <- rbind(sol[, p := trunc((e + g)/ base)], sol[, p := trunc((e + g + 1)/ base)])
-  sol <- sol[p != e][p != g]
-  sol <- sol[p %in% choice_sig]
-  ## Use P to exclude (E, G, P) which is not possible to be the solution
-  sol <- sol[(e + g) <= (p * (base + 1))][(e + g) >= (p * (base + 1) - 1)]
-  ## Find all possible values of F
-  sol <- add_new(sol, "f", choice_nsig)
-  ## Find H given (E, F, G, P)
-  sol <- sol[, h := p * (base^2 + base + 1) - (e * base + f + g * base)][h >= 0][h < base]
-  sol <- sol[h != e][h != f][h != g][h != p]
-  ## Find all possible values of B
-  sol <- add_new(sol, "b", choice_nsig)
-  ## Find D given (B, E, F, G, H, P)
-  sol <- sol[, d := b - f + base * (b < f)][d >= 0][d < base]
-  sol <- sol[d != b][d != e][d != f][d != g][d != h][d != p]
-  ## Find all possible values of A
-  sol <- add_new(sol, "a", choice_sig)
-  ## Find A given (A, B, D, E, F, G, H, P)
-  sol <- sol[, c := a - e - (b < d)][c %in% choice_sig][c < base]
-  sol <- sol[c != a][c != b][c != d][c != e][c != f][c != g][c != h][c != p]
+  sol_fhp <- find("add", unique(sol_egp$p), all, c("f", "h", "p"))[f != p][h != p]
   
-  sol <- sol[order(a, b, c, d, e, f, g, h, p), list(a, b, c, d, e, f, g, h, p)]
-  sol[] <- lapply(sol, convert_wr_base, base = base)
-  return(sol)
+  sol_efghp <- merge(sol_egp, sol_fhp, by = "p", allow.cartesian = TRUE)[e != f][e != h][g != f][g != h]
+  sol_efghp <- sol_efghp[(e * base + f + g * base + h - p * (base^2 + base + 1)) == 0]
+  
+  sol_ace <- rbind(
+    find("sub", unique(sol_efghp$e), all, c("a", "c", "e"))[a > c][a > 0][c > 0][a != e][c != e],
+    find("sub1", unique(sol_efghp$e), all, c("a", "c", "e"))[a > c][a > 0][c > 0][a != e][c != e]
+  )
+  
+  sol_bdf <- find("sub", unique(sol_efghp$f), all, c("b", "d", "f"))[b != f][d != f]
+  
+  sol_abcdefghp <- merge(
+    merge(sol_efghp, sol_ace, by = "e", allow.cartesian = TRUE)[a != f][a != g][a != h][a != p][c != f][c != g][c != h][c != p],
+    merge(sol_efghp, sol_bdf, by = "f", allow.cartesian = TRUE)[b != e][b != g][b != h][b != p][d != e][d != g][d != h][d != p],
+    by = c("e", "f", "g", "h", "p"), allow.cartesian = TRUE
+  )
+  
+  sol_abcdefghp <- sol_abcdefghp[a != b][a != d][c != b][c != d]
+  sol_abcdefghp <- sol_abcdefghp[(a * base + b - c * base - d - e * base - f) == 0]
+  
+  sol_abcdefghp <- sol_abcdefghp[order(a, b, c, d, e, f, g, h, p), list(a, b, c, d, e, f, g, h, p)]
+  sol_abcdefghp[] <- lapply(sol_abcdefghp, convert_wr, base = base)
+  return(sol_abcdefghp)
 }
 
 
-
-
+#================================#
 # Output
-sink(file = "D:/Users/perry/Dropbox/mypersonal/ABCDEFGHPPP/output_w2.txt")
-cat("Machine: i7-4790; RAM: 12GB; 64-bit\n\n")
+#================================#
+sink(file = "D:/output_w2.txt")
+cat("Machine: ----; RAM: ----; 64-bit\n\n")
 cat("----------------------------------------------------------------\n\n")
 for (base in c(16, 22, 28, 34)) {
   time <- system.time({sol <- solve_w2(base)})
@@ -82,7 +93,6 @@ for (base in c(16, 22, 28, 34)) {
   cat("----------------------------------------------------------------\n\n")
 }
 sink()
-
 
 
 
