@@ -76,7 +76,7 @@ solve_w2 <- function(base) {
 #================================#
 # Output
 #================================#
-sink(file = "C:/Users/KITMAN/Documents/GitHub/ABCDEFGHPPP/output_w2.txt")
+sink(file.choose())
 cat("Machine: i5-4460; RAM: 8GB; 64-bit\n\n")
 cat("----------------------------------------------------------------\n\n")
 for (base in c(16, 22, 28, 34)) {
